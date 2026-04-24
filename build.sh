@@ -53,6 +53,21 @@ sed -i 'N;s/WARN("missing symbol table");\n\t\treturn -1;/\n\t\treturn 0;\n\t\t\
 
 sed -i 's/unsigned long __force_order/\/\/ unsigned long __force_order/g' linux-$KERNEL_VERSION/arch/x86/boot/compressed/pgtable_64.c
 
+# Fix GCC 15 C23 default: bool/false are now keywords, breaking old typedef-style code in realmode
+sed -i '/REALMODE_CFLAGS += \$(call __cc-option.*ffreestanding)/i REALMODE_CFLAGS += -std=gnu11' linux-$KERNEL_VERSION/arch/x86/Makefile
+
+# Fix GCC 15 C23 default in EFI libstub (also overrides KBUILD_CFLAGS without -std=)
+sed -i 's/-Wno-pointer-sign \\/-Wno-pointer-sign \\\n\t\t\t\t   -std=gnu11 \\/' linux-$KERNEL_VERSION/drivers/firmware/efi/libstub/Makefile
+
+# Fix GCC 15 C23 default in arch/x86/boot/compressed (resets KBUILD_CFLAGS without -std=)
+sed -i 's/^KBUILD_CFLAGS := -m\$(BITS) -O2$/KBUILD_CFLAGS := -m$(BITS) -O2 -std=gnu11/' linux-$KERNEL_VERSION/arch/x86/boot/compressed/Makefile
+
+# Fix strlcpy redundant redeclaration: glibc >= 2.38 exports strlcpy in <string.h>
+sed -i '/extern size_t strlcpy/d' linux-$KERNEL_VERSION/tools/include/linux/string.h
+
+# Fix use-after-free false positive in objtool libsubcmd (GCC 12+)
+sed -i 's/CFLAGS += -Werror$/CFLAGS += -Werror -Wno-use-after-free/' linux-$KERNEL_VERSION/tools/lib/subcmd/Makefile
+
 make -C linux-$KERNEL_VERSION -j16 bzImage
 
 #
@@ -66,6 +81,7 @@ wget -q -c https://busybox.net/downloads/busybox-$BUSYBOX_VERSION.tar.bz2
 echo "[+] Building busybox..."
 make -C busybox-$BUSYBOX_VERSION defconfig
 sed -i 's/# CONFIG_STATIC is not set/CONFIG_STATIC=y/g' busybox-$BUSYBOX_VERSION/.config
+sed -i 's/CONFIG_TC=y/# CONFIG_TC is not set/' busybox-$BUSYBOX_VERSION/.config
 make -C busybox-$BUSYBOX_VERSION -j16
 make -C busybox-$BUSYBOX_VERSION install
 
