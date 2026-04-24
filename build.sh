@@ -104,3 +104,6 @@ cd src
 make
 cd ..
 cp src/*.ko fs/
+
+# create base home directory at current dir
+mkdir -p hoome
